@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { QuizState, Question, QuizResults, Attempt } from './types';
 import { generateQuizQuestions } from './services/geminiService';
-import { saveQuizAttempt, getRecentAttempts, getGlobalAttempts, signIn } from './services/firebaseService';
+import { saveQuizAttempt, getRecentAttempts, getGlobalAttempts } from './services/firebaseService';
 import Timer from './components/Timer';
 import { Trophy, Brain, ChevronRight, ChevronLeft, RefreshCcw, BookOpen, AlertCircle, Loader2, Cpu, Ruler, Atom, Calculator, Cloud, Save, User, BarChart3, ArrowLeft, XCircle, Send } from 'lucide-react';
 
@@ -27,10 +27,6 @@ const App: React.FC = () => {
   const [codeName, setCodeName] = useState(localStorage.getItem('eng_quiz_codename') || '');
   const [isSaving, setIsSaving] = useState(false);
   const loadingIntervalRef = useRef<number | null>(null);
-
-  useEffect(() => {
-    signIn();
-  }, []);
 
   useEffect(() => {
     if (state === QuizState.START) {

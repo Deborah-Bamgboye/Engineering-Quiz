@@ -1,7 +1,6 @@
 
 import { initializeApp } from 'firebase/app';
 import { getFirestore, collection, addDoc, query, orderBy, limit, getDocs, serverTimestamp } from 'firebase/firestore';
-import { getAuth, onAuthStateChanged, signInAnonymously, User } from 'firebase/auth';
 import { Attempt } from '../types';
 
 const firebaseConfig = {
@@ -14,39 +13,17 @@ const firebaseConfig = {
 };
 
 let db: any = null;
-let auth: any = null;
 let isFirebaseEnabled = false;
-let currentUser: User | null = null;
 
 try {
   if (firebaseConfig.apiKey && firebaseConfig.apiKey !== "") {
     const app = initializeApp(firebaseConfig);
     db = getFirestore(app);
-    auth = getAuth(app);
     isFirebaseEnabled = true;
-
-    onAuthStateChanged(auth, (user) => {
-      if (user) {
-        currentUser = user;
-      } else {
-        currentUser = null;
-      }
-    });
-
   }
 } catch (e) {
   console.warn("Firebase initialization skipped or failed. Falling back to local storage.", e);
 }
-
-export const signIn = async () => {
-  if (isFirebaseEnabled && auth) {
-    try {
-      await signInAnonymously(auth);
-    } catch (e) {
-      console.error("Anonymous sign in failed", e);
-    }
-  }
-};
 
 const LOCAL_STORAGE_KEY = 'eng_quiz_local_attempts';
 
@@ -57,8 +34,7 @@ export const saveQuizAttempt = async (score: number, total: number, codeName: st
     codeName,
     percentage: (score / total) * 100,
     timestamp: new Date().toISOString(),
-    id: Math.random().toString(36).substr(2, 9),
-    userId: currentUser?.uid
+    id: Math.random().toString(36).substr(2, 9)
   };
 
   const localData = JSON.parse(localStorage.getItem(LOCAL_STORAGE_KEY) || '[]');
