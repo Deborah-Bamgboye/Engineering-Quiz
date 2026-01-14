@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 
 interface TimerProps {
   initialMinutes: number;
@@ -7,31 +7,54 @@ interface TimerProps {
 }
 
 const Timer: React.FC<TimerProps> = ({ initialMinutes, onTimeUp }) => {
-  const [seconds, setSeconds] = useState(initialMinutes * 60);
+  // Store the target end time in a ref so it persists across re-renders 
+  // and doesn't change if the component re-renders for other reasons.
+  const endTimeRef = useRef<number>(Date.now() + initialMinutes * 60 * 1000);
+  const [timeLeft, setTimeLeft] = useState(initialMinutes * 60);
+  const onTimeUpRef = useRef(onTimeUp);
+
+  // Keep callback ref up to date
+  useEffect(() => {
+    onTimeUpRef.current = onTimeUp;
+  }, [onTimeUp]);
 
   useEffect(() => {
-    if (seconds <= 0) {
-      onTimeUp();
-      return;
-    }
+    const updateTimer = () => {
+      const now = Date.now();
+      const remainingDistance = Math.max(0, Math.floor((endTimeRef.current - now) / 1000));
+      
+      setTimeLeft(remainingDistance);
 
-    const interval = setInterval(() => {
-      setSeconds(prev => prev - 1);
-    }, 1000);
+      if (remainingDistance <= 0) {
+        if (intervalId) clearInterval(intervalId);
+        onTimeUpRef.current();
+      }
+    };
 
-    return () => clearInterval(interval);
-  }, [seconds, onTimeUp]);
+    // Run immediately to sync
+    updateTimer();
 
-  const minutesLeft = Math.floor(seconds / 60);
-  const secondsLeft = seconds % 60;
+    // Standard interval for UI updates. Even if throttled by the browser in the background,
+    // the NEXT time it runs, it will calculate the delta correctly using Date.now().
+    const intervalId = setInterval(updateTimer, 1000);
 
-  const isWarning = seconds < 120; // 2 minutes
+    return () => clearInterval(intervalId);
+  }, []);
+
+  const minutesLeft = Math.floor(timeLeft / 60);
+  const secondsLeft = timeLeft % 60;
+  const isWarning = timeLeft < 120; // 2 minutes warning
 
   return (
-    <div className={`fixed top-4 right-4 z-50 px-6 py-3 rounded-full shadow-lg font-mono text-xl font-bold border-2 ${
-      isWarning ? 'bg-red-100 border-red-500 text-red-600 animate-pulse' : 'bg-white border-blue-500 text-blue-600'
+    <div className={`fixed top-4 right-4 z-50 px-6 py-3 rounded-full shadow-lg font-mono text-xl font-bold border-2 transition-colors duration-300 ${
+      isWarning 
+        ? 'bg-red-100 border-red-500 text-red-600 animate-pulse' 
+        : 'bg-white border-blue-500 text-blue-600'
     }`}>
-      {String(minutesLeft).padStart(2, '0')}:{String(secondsLeft).padStart(2, '0')}
+      <span className="flex items-center gap-2">
+        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={isWarning ? 'animate-spin-slow' : ''}><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+        {String(minutesLeft).padStart(2, '0')}:{String(secondsLeft).padStart(2, '0')}
+      </span>
     </div>
   );
 };

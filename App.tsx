@@ -2,8 +2,9 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { QuizState, Question, QuizResults } from './types';
 import { generateQuizQuestions } from './services/geminiService';
+import { saveQuizAttempt, getRecentAttempts } from './services/firebaseService';
 import Timer from './components/Timer';
-import { Trophy, Brain, ChevronRight, ChevronLeft, RefreshCcw, BookOpen, AlertCircle, Loader2, Cpu, Ruler, Atom, Calculator } from 'lucide-react';
+import { Trophy, Brain, ChevronRight, ChevronLeft, RefreshCcw, BookOpen, AlertCircle, Loader2, Cpu, Ruler, Atom, Calculator, Cloud, Save, Play } from 'lucide-react';
 
 const LOADING_MESSAGES = [
   { text: "Architecting the questions...", icon: <Ruler className="w-6 h-6" /> },
@@ -25,9 +26,14 @@ const App: React.FC = () => {
   const [userAnswers, setUserAnswers] = useState<Record<string, number>>({});
   const [results, setResults] = useState<QuizResults | null>(null);
   const [loadingStep, setLoadingStep] = useState(0);
+  const [recentAttempts, setRecentAttempts] = useState<any[]>([]);
+  const [isSaving, setIsSaving] = useState(false);
   const loadingIntervalRef = useRef<number | null>(null);
 
   useEffect(() => {
+    if (state === QuizState.START) {
+      getRecentAttempts().then(setRecentAttempts);
+    }
     if (state === QuizState.LOADING) {
       loadingIntervalRef.current = window.setInterval(() => {
         setLoadingStep(prev => (prev + 1) % LOADING_MESSAGES.length);
@@ -48,6 +54,7 @@ const App: React.FC = () => {
       setState(QuizState.ACTIVE);
       setCurrentIdx(0);
       setUserAnswers({});
+      setResults(null);
     } catch (err) {
       console.error(err);
       alert("Failed to connect to the quiz engine. Check your internet.");
@@ -55,7 +62,7 @@ const App: React.FC = () => {
     }
   };
 
-  const finishQuiz = useCallback(() => {
+  const finishQuiz = useCallback(async () => {
     let score = 0;
     questions.forEach(q => {
       if (userAnswers[q.id] === q.correctAnswer) {
@@ -63,14 +70,21 @@ const App: React.FC = () => {
       }
     });
 
-    setResults({
+    const newResults = {
       score,
       total: questions.length,
       answers: userAnswers,
       questions,
       timeSpent: 21 
-    });
+    };
+    
+    setResults(newResults);
     setState(QuizState.FINISHED);
+
+    // Save to Firebase/Local
+    setIsSaving(true);
+    await saveQuizAttempt(score, questions.length);
+    setIsSaving(false);
   }, [questions, userAnswers]);
 
   const handleSelectOption = (qId: string, optionIdx: number) => {
@@ -99,6 +113,26 @@ const App: React.FC = () => {
                 <p className="text-2xl font-bold text-slate-800">21m</p>
               </div>
             </div>
+
+            {recentAttempts.length > 0 && (
+              <div className="bg-slate-50 rounded-xl p-4 border border-slate-100">
+                <h4 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-3 flex items-center">
+                  <Cloud className="w-3 h-3 mr-1" /> Recent History
+                </h4>
+                <div className="space-y-2 max-h-32 overflow-y-auto pr-1">
+                  {recentAttempts.map((attempt, i) => (
+                    <div key={i} className="flex justify-between items-center text-sm bg-white p-2 rounded border border-slate-100">
+                      <span className="text-slate-600 flex items-center gap-2">
+                        <span className="w-2 h-2 rounded-full bg-blue-400"></span>
+                        {new Date(attempt.timestamp).toLocaleDateString()}
+                      </span>
+                      <span className="font-bold text-blue-600">{attempt.score}/{attempt.total}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
             <div className="space-y-3">
               <h3 className="font-semibold text-slate-700">Topics Covered:</h3>
               <ul className="text-sm text-slate-600 space-y-2">
@@ -114,7 +148,6 @@ const App: React.FC = () => {
             >
               Start Practice Session
             </button>
-            <p className="text-center text-xs text-slate-400">Personalized questions generated for every session.</p>
           </div>
         </div>
       </div>
@@ -144,15 +177,6 @@ const App: React.FC = () => {
             <p className="text-slate-400 text-sm">
               Sourcing university-level problems from our knowledge base...
             </p>
-          </div>
-          
-          <div className="mt-8 flex justify-center gap-1">
-            {LOADING_MESSAGES.map((_, i) => (
-              <div 
-                key={i} 
-                className={`h-1.5 rounded-full transition-all duration-500 ${i === loadingStep ? 'w-8 bg-blue-600' : 'w-2 bg-slate-200'}`}
-              />
-            ))}
           </div>
         </div>
       </div>
@@ -251,10 +275,18 @@ const App: React.FC = () => {
       <div className="min-h-screen bg-slate-50 p-4 md:p-8">
         <div className="max-w-4xl mx-auto">
           <div className="bg-white rounded-3xl shadow-2xl overflow-hidden mb-8 border border-slate-100">
-            <div className={`p-10 text-center ${percentage >= 70 ? 'bg-green-600' : percentage >= 40 ? 'bg-amber-500' : 'bg-red-600'} text-white`}>
+            <div className={`p-10 text-center ${percentage >= 70 ? 'bg-green-600' : percentage >= 40 ? 'bg-amber-500' : 'bg-red-600'} text-white transition-colors duration-1000`}>
               <Trophy className="w-20 h-20 mx-auto mb-4" />
               <h2 className="text-4xl font-black mb-2">Quiz Complete!</h2>
-              <p className="text-lg opacity-90">Great practice for the interdepartmental competition.</p>
+              {isSaving ? (
+                <div className="text-xs uppercase tracking-widest opacity-70 flex items-center justify-center gap-2">
+                  <Loader2 className="w-3 h-3 animate-spin" /> Saving attempt...
+                </div>
+              ) : (
+                <div className="text-xs uppercase tracking-widest opacity-70 flex items-center justify-center gap-2">
+                  <Save className="w-3 h-3" /> Progress recorded
+                </div>
+              )}
             </div>
             
             <div className="p-10">
@@ -275,19 +307,30 @@ const App: React.FC = () => {
                 </div>
               </div>
 
-              <div className="flex flex-col sm:flex-row gap-4 mb-12">
+              <div className="flex flex-col gap-4 mb-12">
                 <button 
                   onClick={startQuiz}
-                  className="flex-1 py-4 bg-blue-600 text-white rounded-2xl font-bold flex items-center justify-center hover:bg-blue-700 transition-all shadow-lg shadow-blue-200"
+                  className="w-full py-5 bg-blue-600 text-white rounded-2xl font-bold text-xl flex items-center justify-center hover:bg-blue-700 transition-all shadow-xl shadow-blue-200 hover:-translate-y-1 active:translate-y-0"
                 >
-                  <RefreshCcw className="w-5 h-5 mr-2" /> New Random Quiz
+                  <RefreshCcw className="w-6 h-6 mr-3" /> Start New Practice Set
                 </button>
-                <button 
-                  onClick={() => window.location.reload()}
-                  className="flex-1 py-4 bg-slate-800 text-white rounded-2xl font-bold flex items-center justify-center hover:bg-slate-900 transition-all shadow-lg shadow-slate-200"
-                >
-                  Return Home
-                </button>
+                
+                <div className="grid grid-cols-2 gap-4">
+                  <button 
+                    onClick={() => setState(QuizState.START)}
+                    className="py-4 bg-slate-800 text-white rounded-2xl font-bold flex items-center justify-center hover:bg-slate-900 transition-all"
+                  >
+                    Return Home
+                  </button>
+                  <button 
+                    onClick={() => {
+                        window.scrollTo({ top: 0, behavior: 'smooth' });
+                    }}
+                    className="py-4 bg-white border-2 border-slate-200 text-slate-600 rounded-2xl font-bold flex items-center justify-center hover:bg-slate-50 transition-all"
+                  >
+                    <BookOpen className="w-5 h-5 mr-2" /> Review Now
+                  </button>
+                </div>
               </div>
 
               <h3 className="text-2xl font-bold text-slate-800 mb-6 flex items-center">

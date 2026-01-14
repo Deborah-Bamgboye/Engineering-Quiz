@@ -2,9 +2,16 @@
 import { GoogleGenAI, Type } from "@google/genai";
 import { Question } from "../types";
 
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY || '' });
-
 export const generateQuizQuestions = async (): Promise<Question[]> => {
+  const apiKey = process.env.API_KEY;
+
+  if (!apiKey || apiKey === "undefined") {
+    throw new Error("API Key missing. Please add your Gemini API key to your Environment Variables as 'API_KEY'. You can get one for free at aistudio.google.com");
+  }
+
+  // Initialize with the key from process.env
+  const ai = new GoogleGenAI({ apiKey });
+  
   const prompt = `Generate exactly 50 university-level engineering quiz questions for 1st-3rd year students.
   
   Distribution:
@@ -18,7 +25,7 @@ export const generateQuizQuestions = async (): Promise<Question[]> => {
   Ensure each question is unique and technical.`;
 
   const response = await ai.models.generateContent({
-    model: 'gemini-3-flash-preview',
+    model: 'gemini-3-pro-preview', // High-quality reasoning for technical engineering topics
     contents: prompt,
     config: {
       responseMimeType: "application/json",
@@ -44,10 +51,11 @@ export const generateQuizQuestions = async (): Promise<Question[]> => {
   });
 
   try {
-    const questions = JSON.parse(response.text);
-    return questions;
+    const text = response.text;
+    if (!text) throw new Error("No response text from Gemini");
+    return JSON.parse(text.trim());
   } catch (e) {
     console.error("Failed to parse quiz questions", e);
-    throw new Error("Could not generate quiz questions. Please try again.");
+    throw new Error("Could not generate quiz questions. Ensure your API Key is valid and you have quota available in AI Studio.");
   }
 };
