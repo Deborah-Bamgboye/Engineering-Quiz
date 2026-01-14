@@ -12,7 +12,8 @@ export enum QuizState {
   START = 'START',
   LOADING = 'LOADING',
   ACTIVE = 'ACTIVE',
-  FINISHED = 'FINISHED'
+  FINISHED = 'FINISHED',
+  MONITOR = 'MONITOR'
 }
 
 export interface QuizResults {
@@ -21,4 +22,14 @@ export interface QuizResults {
   answers: Record<string, number>;
   questions: Question[];
   timeSpent: number;
+  codeName: string;
+}
+
+export interface Attempt {
+  id: string;
+  codeName: string;
+  score: number;
+  total: number;
+  percentage: number;
+  timestamp: any;
 }
