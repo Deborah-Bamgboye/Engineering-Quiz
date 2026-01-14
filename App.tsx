@@ -4,7 +4,7 @@ import { QuizState, Question, QuizResults, Attempt } from './types';
 import { generateQuizQuestions } from './services/geminiService';
 import { saveQuizAttempt, getRecentAttempts, getGlobalAttempts } from './services/firebaseService';
 import Timer from './components/Timer';
-import { Trophy, Brain, ChevronRight, ChevronLeft, RefreshCcw, BookOpen, AlertCircle, Loader2, Cpu, Ruler, Atom, Calculator, Cloud, Save, User, BarChart3, ArrowLeft } from 'lucide-react';
+import { Trophy, Brain, ChevronRight, ChevronLeft, RefreshCcw, BookOpen, AlertCircle, Loader2, Cpu, Ruler, Atom, Calculator, Cloud, Save, User, BarChart3, ArrowLeft, XCircle, Send } from 'lucide-react';
 
 const LOADING_MESSAGES = [
   { text: "Architecting the questions...", icon: <Ruler className="w-6 h-6" /> },
@@ -92,6 +92,21 @@ const App: React.FC = () => {
     await saveQuizAttempt(score, questions.length, codeName);
     setIsSaving(false);
   }, [questions, userAnswers, codeName]);
+
+  const stopQuiz = () => {
+    if (window.confirm("Are you sure you want to stop the quiz? Your current progress will not be saved.")) {
+      setState(QuizState.START);
+      setQuestions([]);
+      setUserAnswers({});
+    }
+  };
+
+  const submitEarly = () => {
+    const answeredCount = Object.keys(userAnswers).length;
+    if (window.confirm(`You have answered ${answeredCount} out of ${questions.length} questions. Submit early and see results?`)) {
+      finishQuiz();
+    }
+  };
 
   const handleSelectOption = (qId: string, optionIdx: number) => {
     setUserAnswers(prev => ({ ...prev, [qId]: optionIdx }));
@@ -262,22 +277,26 @@ const App: React.FC = () => {
   if (state === QuizState.ACTIVE) {
     const q = questions[currentIdx];
     const progress = ((currentIdx + 1) / questions.length) * 100;
+    const answeredCount = Object.keys(userAnswers).length;
 
     return (
       <div className="min-h-screen bg-slate-50 pb-20">
         <Timer initialMinutes={21} onTimeUp={finishQuiz} />
         
         <div className="max-w-4xl mx-auto px-4 pt-10">
-          <div className="flex justify-between items-end mb-4">
-            <div>
-              <span className="px-3 py-1 bg-blue-100 text-blue-700 text-xs font-bold rounded-full uppercase tracking-wider">
+          <div className="flex justify-between items-start mb-6">
+            <div className="flex flex-col">
+              <span className="px-3 py-1 bg-blue-100 text-blue-700 text-xs font-bold rounded-full uppercase tracking-wider w-fit">
                 {q.category}
               </span>
               <h2 className="text-sm text-slate-500 mt-2 font-medium uppercase tracking-widest">Question {currentIdx + 1} of {questions.length}</h2>
             </div>
-            <div className="text-right">
-              <span className="text-2xl font-bold text-slate-800">{Math.round(progress)}%</span>
-            </div>
+            <button 
+              onClick={stopQuiz}
+              className="flex items-center gap-2 px-4 py-2 bg-red-50 text-red-600 hover:bg-red-100 rounded-xl font-bold text-sm transition-all border border-red-100"
+            >
+              <XCircle className="w-4 h-4" /> Stop Quiz
+            </button>
           </div>
           
           <div className="w-full bg-slate-200 h-2 rounded-full mb-8 overflow-hidden">
@@ -314,30 +333,43 @@ const App: React.FC = () => {
             </div>
           </div>
 
-          <div className="flex justify-between items-center gap-4">
-            <button
-              disabled={currentIdx === 0}
-              onClick={() => setCurrentIdx(prev => prev - 1)}
-              className="flex items-center px-6 py-3 rounded-xl font-bold text-slate-600 disabled:opacity-30 disabled:cursor-not-allowed hover:bg-slate-200 transition-colors"
-            >
-              <ChevronLeft className="w-5 h-5 mr-1" /> Previous
-            </button>
-            
-            {currentIdx === questions.length - 1 ? (
+          <div className="flex flex-wrap justify-between items-center gap-4">
+            <div className="flex gap-2">
               <button
-                onClick={finishQuiz}
-                className="bg-green-600 hover:bg-green-700 text-white px-10 py-3 rounded-xl font-bold shadow-lg shadow-green-200 transition-all"
+                disabled={currentIdx === 0}
+                onClick={() => setCurrentIdx(prev => prev - 1)}
+                className="flex items-center px-6 py-3 rounded-xl font-bold text-slate-600 disabled:opacity-30 disabled:cursor-not-allowed hover:bg-slate-200 transition-colors"
               >
-                Submit Quiz
+                <ChevronLeft className="w-5 h-5 mr-1" /> Previous
               </button>
-            ) : (
-              <button
-                onClick={() => setCurrentIdx(prev => prev + 1)}
-                className="flex items-center bg-blue-600 hover:bg-blue-700 text-white px-10 py-3 rounded-xl font-bold shadow-lg shadow-blue-200 transition-all"
-              >
-                Next <ChevronRight className="w-5 h-5 ml-1" />
-              </button>
-            )}
+            </div>
+
+            <div className="flex gap-3">
+              {answeredCount > 0 && (
+                <button
+                  onClick={submitEarly}
+                  className="flex items-center gap-2 bg-amber-50 hover:bg-amber-100 text-amber-700 px-6 py-3 rounded-xl font-bold border border-amber-200 transition-all"
+                >
+                  <Send className="w-4 h-4" /> Submit Early
+                </button>
+              )}
+
+              {currentIdx === questions.length - 1 ? (
+                <button
+                  onClick={finishQuiz}
+                  className="bg-green-600 hover:bg-green-700 text-white px-10 py-3 rounded-xl font-bold shadow-lg shadow-green-200 transition-all"
+                >
+                  Submit Quiz
+                </button>
+              ) : (
+                <button
+                  onClick={() => setCurrentIdx(prev => prev + 1)}
+                  className="flex items-center bg-blue-600 hover:bg-blue-700 text-white px-10 py-3 rounded-xl font-bold shadow-lg shadow-blue-200 transition-all"
+                >
+                  Next <ChevronRight className="w-5 h-5 ml-1" />
+                </button>
+              )}
+            </div>
           </div>
         </div>
       </div>
@@ -404,14 +436,18 @@ const App: React.FC = () => {
                 {results.questions.map((q, idx) => {
                   const userAns = results.answers[q.id];
                   const isCorrect = userAns === q.correctAnswer;
+                  const isUnanswered = userAns === undefined;
                   return (
-                    <div key={q.id} className={`p-6 rounded-2xl border-2 ${isCorrect ? 'border-green-100 bg-green-50/30' : 'border-red-100 bg-red-50/30'}`}>
+                    <div key={q.id} className={`p-6 rounded-2xl border-2 ${isUnanswered ? 'border-slate-100 bg-slate-50/50' : isCorrect ? 'border-green-100 bg-green-50/30' : 'border-red-100 bg-red-50/30'}`}>
                       <div className="flex items-start gap-4">
-                        <span className={`flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm ${isCorrect ? 'bg-green-600 text-white' : 'bg-red-600 text-white'}`}>
+                        <span className={`flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm ${isUnanswered ? 'bg-slate-300 text-white' : isCorrect ? 'bg-green-600 text-white' : 'bg-red-600 text-white'}`}>
                           {idx + 1}
                         </span>
                         <div className="flex-1">
-                          <p className="text-lg font-bold text-slate-800 mb-3">{q.question}</p>
+                          <div className="flex justify-between items-start mb-3">
+                            <p className="text-lg font-bold text-slate-800">{q.question}</p>
+                            {isUnanswered && <span className="text-[10px] font-bold uppercase tracking-tighter bg-slate-200 text-slate-500 px-2 py-1 rounded ml-2">Skipped</span>}
+                          </div>
                           <div className="grid grid-cols-1 md:grid-cols-2 gap-2 mb-4">
                             {q.options.map((opt, i) => (
                               <div key={i} className={`p-3 rounded-xl text-sm font-medium ${
